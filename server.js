@@ -1,5 +1,5 @@
 import { serve } from "@hono/node-server";
-import app from "./dist/src/index.js";
+import app from "./dist/index.js";
 
 const port = process.env.PORT ? Number(process.env.PORT) : 3000;
 

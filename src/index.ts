@@ -9,9 +9,22 @@ const { app, addEntrypoint } = createAgentApp({
   description: "Watch borrow positions and warn before liquidation risk",
 });
 
+app.get("/health", (c) => c.json({ ok: true, version: "0.1.0" }));
+
 // Skip x402 payment middleware in test environment
 if (process.env.NODE_ENV !== "test") {
-  app.use("*", paymentMiddleware as any);
+  const receiver = process.env.X402_RECEIVER_ADDRESS;
+  if (receiver) {
+    const pricing = process.env.X402_PRICING || "0.01";
+    const asset = process.env.X402_ASSET || "USDC";
+    const network = process.env.X402_NETWORK || "base";
+    const mw = paymentMiddleware(receiver as `0x${string}`, {
+      price: pricing,
+      network,
+      config: { asset } as never,
+    });
+    app.use("/entrypoints/*", mw as never);
+  }
 }
 
 addEntrypoint({

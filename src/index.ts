@@ -34,3 +34,4 @@ addEntrypoint({
 });
 
 export { app };
+export default app;

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 
-// Set env before importing agent
 process.env.NODE_ENV = "test";
 process.env.X402_RECEIVER_ADDRESS = "0xTest";
 process.env.X402_PRICING = "0.01";
@@ -10,6 +9,10 @@ vi.stubGlobal("fetch", mockFetch);
 
 async function importApp() {
   return await import("../src/index.js");
+}
+
+function encodeData(vals: number[]): string {
+  return "0x" + vals.map(v => v.toString(16).padStart(64, "0")).join("");
 }
 
 describe("Lending Liquidation Sentinel agent", () => {
@@ -24,28 +27,12 @@ describe("Lending Liquidation Sentinel agent", () => {
     expect(body.version).toBeDefined();
   });
 
-  it("/entrypoints/check/invoke returns risk data with Aave", async () => {
+  it("/entrypoints/check/invoke returns risk data", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        data: {
-          user: {
-            id: "0xwallet",
-            totalCollateralETH: "5000000000000000000",
-            totalBorrowsETH: "2000000000000000000",
-            healthFactor: "1.05",
-            reserves: [
-              {
-                reserve: {
-                  symbol: "ETH",
-                  liquidationThreshold: "0.8",
-                },
-                currentATokenBalance: "2000000000000000000",
-                currentTotalDebt: "1000000000000000000",
-              },
-            ],
-          },
-        },
+        jsonrpc: "2.0", id: 1,
+        result: encodeData([500000000, 200000000, 0, 8000, 7500, 1050000000000000000]),
       }),
     });
 

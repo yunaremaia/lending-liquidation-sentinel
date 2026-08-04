@@ -25,6 +25,32 @@ const DEMO_DATA: Record<string, { hf: number; collateral: number; debt: number }
   "0xrisky": { hf: 0.92, collateral: 3, debt: 3.5 },
 };
 
+const ETH_PRICE_FALLBACK = 2500;
+
+let priceCache = 0;
+let priceCacheAt = 0;
+const PRICE_TTL_MS = 60_000;
+
+/** Fetch live ETH/USD price from CoinGecko with 60s cache and fallback. */
+export async function getEthPrice(fetchFn: typeof fetch = fetch): Promise<number> {
+  if (Date.now() - priceCacheAt < PRICE_TTL_MS && priceCache > 0) return priceCache;
+  try {
+    const res = await fetchFn(
+      "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd",
+      { headers: { accept: "application/json" } }
+    );
+    if (!res.ok) throw new Error(`coingecko ${res.status}`);
+    const data = (await res.json()) as { ethereum?: { usd?: number } };
+    const usd = data?.ethereum?.usd;
+    if (typeof usd === "number" && usd > 0) {
+      priceCache = usd;
+      priceCacheAt = Date.now();
+      return usd;
+    }
+  } catch { /* fallback */ }
+  return priceCache > 0 ? priceCache : ETH_PRICE_FALLBACK;
+}
+
 export async function checkLiquidationRisk(input: RiskInput): Promise<RiskOutput> {
   const unsupported = input.protocolIds.filter((p) => !SUPPORTED_PROTOCOLS.has(p));
   if (unsupported.length > 0) {
@@ -49,8 +75,8 @@ export async function checkLiquidationRisk(input: RiskInput): Promise<RiskOutput
       if (!userData) {
         const demo = DEMO_DATA[input.wallet.toLowerCase()];
         if (demo) {
+          const currentPrice = await getEthPrice();
           const liqPrice = calcLiquidationPrice(demo.debt, demo.collateral, 0.8);
-          const currentPrice = 3000;
           return {
             ok: true,
             health_factor: demo.hf,
@@ -66,7 +92,7 @@ export async function checkLiquidationRisk(input: RiskInput): Promise<RiskOutput
       protocolsChecked++;
       const hf = userData.healthFactor;
       const pos = userData.positions.length > 0 ? userData.positions[0] : null;
-      const currentPrice = 3000;
+      const currentPrice = await getEthPrice();
       const liqPrice = pos
         ? calcLiquidationPrice(pos.debtBalance, pos.collateralBalance, pos.liquidationThreshold)
         : 0;

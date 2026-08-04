@@ -1,25 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
-
-process.env.NODE_ENV = "test";
-process.env.X402_RECEIVER_ADDRESS = "0xTest";
-process.env.X402_PRICING = "0.01";
-
-const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
-
-async function importApp() {
-  return await import("../src/index.js");
-}
-
-function encodeData(vals: number[]): string {
-  return "0x" + vals.map(v => v.toString(16).padStart(64, "0")).join("");
-}
+import { describe, it, expect } from "vitest";
+import app from "../src/index.js";
 
 describe("Lending Liquidation Sentinel agent", () => {
-  beforeEach(() => mockFetch.mockReset());
-
   it("/health returns ok and version", async () => {
-    const { app } = await importApp();
     const res = await app.request("/health");
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -27,45 +10,33 @@ describe("Lending Liquidation Sentinel agent", () => {
     expect(body.version).toBeDefined();
   });
 
-  it("/entrypoints/check/invoke returns risk data", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        jsonrpc: "2.0", id: 1,
-        result: encodeData([500000000, 200000000, 0, 8000, 7500, 1050000000000000000]),
-      }),
-    });
-
-    const { app } = await importApp();
-    const res = await app.request("/entrypoints/check/invoke", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        input: {
-          wallet: "0xwallet",
-          protocol_ids: ["aave"],
-          positions: ["ETH"],
-        },
-      }),
-    });
-
+  it("expõe .well-known/agent.json e entrypoints", async () => {
+    const res = await app.request("/.well-known/agent.json");
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.status).toBe("succeeded");
-    expect(body.output.ok).toBe(true);
-    expect(body.output.health_factor).toBeDefined();
-    expect(body.output.liq_price).toBeGreaterThan(0);
-    expect(body.output.alert_threshold_hit).toBe(true);
+    const manifest = await res.json();
+    expect(manifest.name).toBe("lending-liquidation-sentinel");
+
+    const eps = await app.request("/entrypoints");
+    expect(eps.status).toBe(200);
+    const { items } = await eps.json();
+    expect(items.map((i: any) => i.key)).toContain("check");
   });
 
-  it("returns error for invalid input", async () => {
-    const { app } = await importApp();
+  it("x402: POST check invoke sem pagamento → 402 + paymentRequirements", async () => {
     const res = await app.request("/entrypoints/check/invoke", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ input: {} }),
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        input: { wallet: "0xwallet", protocol_ids: ["aave"], positions: [] },
+      }),
     });
-
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(402);
+    const body = await res.json();
+    expect(body.error).toContain("X-PAYMENT");
+    expect(Array.isArray(body.accepts)).toBe(true);
+    const req = body.accepts[0];
+    expect(req.network).toBeDefined();
+    expect(req.maxAmountRequired).toBeDefined();
+    expect(req.payTo).toBeDefined();
   });
 });

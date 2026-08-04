@@ -1,11 +1,35 @@
+# Lending Liquidation Sentinel
 
+x402 agent that monitors Aave lending positions and alerts before liquidation risk by tracking health factor in real time.
 
-## Funding
+## Bounty
 
-If you find this agent useful, consider supporting its development:
+Daydreams AI Agent Bounties — **#9 Lending Liquidation Sentinel** ($1,000)
 
-- **Solana** (USDC/SOL): `DGCs31pNhFWbYRf6CoVxhriJ5DXF1Bq31yY7Jg416EU5`
-- **Ethereum** (EVM): `0x61090c6e6fbdaee9d695c6d164a3ead268aea4ac`
+## What it does
 
-> All donations are automatically converted to USDC on Solana. 50% supports ongoing
-> development and infrastructure; 50% is shared with the maintainers.
+- Fetches user positions from Aave V3 (eMode category, liquidation threshold)
+- Calculates health factor from collateral, debt, and live ETH prices (CoinGecko)
+- Determines liquidation price threshold and safety buffer
+- Returns alert flag when position approaches liquidation
+
+## Deploy
+
+- **URL**: https://lending-liquidation-sentinel.vercel.app
+- **Endpoint**: `POST /entrypoints/check/invoke`
+- **Input**: `{ "wallet": "0x...", "protocol_ids": ["aave"], "positions": [] }`
+- **x402**: Active — returns 402 without payment
+
+## Tests
+
+```bash
+npm run test    # vitest: 22/22 passing
+npm run build   # tsc: clean
+```
+
+## Tech Stack
+
+- TypeScript + Hono + @lucid-dreams/agent-kit
+- x402 payment middleware
+- Aave V3 API + CoinGecko price feed
+- vitest
